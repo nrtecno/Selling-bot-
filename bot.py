@@ -30,7 +30,7 @@ def handle_buy(call):
     bot.answer_callback_query(call.id)
     buy_text = (
         "💵 **PRICE Only 30 Rupees**\n"
-        "📦 **CONTENT: 300+ videos**\n\n"
+        "📦 **CONTENT: 300+ CP videos**\n\n"
         "Payment & SEND SCREENSHOT for verify"
     )
     bot.send_message(call.message.chat.id, buy_text, parse_mode="Markdown")
