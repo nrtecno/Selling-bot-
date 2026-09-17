@@ -2,7 +2,6 @@ import telebot
 from telebot import types
 import os
 import sys
-import re
 
 BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 ADMIN_CHANNEL_ID = os.environ.get("ADMIN_CHANNEL_ID")
@@ -19,16 +18,8 @@ if not ADMIN_CHANNEL_ID:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Temporary store: {user_id: {"photo_id": ..., "attempts": ...}}
+# Temporary store: {user_id: {"photo_id": ..., "username": ...}}
 pending_users = {}
-
-# Username validation regex
-# 5-32 chars, letter se start, letter/number pe end, beech me letter/number/underscore
-USERNAME_REGEX = re.compile(r'^[a-zA-Z][a-zA-Z0-9_]{3,30}[a-zA-Z0-9]$')
-
-
-def is_valid_username(username: str) -> bool:
-    return bool(USERNAME_REGEX.match(username))
 
 
 # /start command
@@ -69,10 +60,10 @@ def handle_buy(call):
 def handle_screenshot(message):
     user_id = message.chat.id
     file_id = message.photo[-1].file_id
-
-    # Photo store karo pending me (attempts = 0)
-    pending_users[user_id] = {"photo_id": file_id, "attempts": 0}
-
+    
+    # Photo store karo pending me
+    pending_users[user_id] = {"photo_id": file_id}
+    
     bot.reply_to(
         message,
         "✅ Screenshot received!\n\n"
@@ -85,57 +76,25 @@ def handle_screenshot(message):
 def handle_text(message):
     user_id = message.chat.id
     text = message.text.strip()
-
+    
     # Agar user ne pehle screenshot bheja hai
     if user_id in pending_users and "photo_id" in pending_users[user_id]:
         photo_id = pending_users[user_id]["photo_id"]
-        attempts = pending_users[user_id].get("attempts", 0)
-
-        # @ hata do agar hai
-        clean_username = text.lstrip('@').strip()
-
-        # ❌ Invalid username
-        if not is_valid_username(clean_username):
-            attempts += 1
-            pending_users[user_id]["attempts"] = attempts
-
-            if attempts == 1:
-                bot.reply_to(
-                    message,
-                    "❌ *Invalid username!*\n\n"
-                    "Username rules:\n"
-                    "• 5-32 characters\n"
-                    "• Letters, numbers, underscore (_)\n"
-                    "• Letter se start, letter/number pe end\n\n"
-                    "👉 Sahi username dobara bhejo (jaise: @yourusername)",
-                    parse_mode="Markdown"
-                )
-            else:
-                bot.reply_to(
-                    message,
-                    "1. MAKE YOUR USERNAME\n"
-                    "2. SEND YOUR SCREENSHOT WITH YOUR USERNAME\n\n"
-                    "HOW TO MAKE USERNAME: https://t.me/howtousenr/6"
-                )
-                # Pending clear — user ko dobara screenshot bhejna padega
-                del pending_users[user_id]
-            return
-
-        # ✅ Valid username — admin ko bhejo
         auto_username = message.from_user.username or "No username"
-
+        
+        # Admin channel me approve/reject buttons ke saath bhejo
         markup = types.InlineKeyboardMarkup()
         btn_approve = types.InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user_id}")
         btn_reject = types.InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user_id}")
         markup.add(btn_approve, btn_reject)
-
+        
         caption = (
             f"💳 *New Payment Screenshot*\n\n"
-            f"👤 *Username (typed):* @{clean_username}\n"
+            f"👤 *Username (typed):* {text}\n"
             f"🆔 *Telegram ID:* `{user_id}`\n"
             f"🔗 *Auto Username:* @{auto_username}"
         )
-
+        
         bot.send_photo(
             ADMIN_CHANNEL_ID,
             photo_id,
@@ -143,10 +102,10 @@ def handle_text(message):
             parse_mode="Markdown",
             reply_markup=markup
         )
-
+        
         # Pending clear karo
         del pending_users[user_id]
-
+        
         bot.reply_to(
             message,
             "✅ Details admin ko bhej di gayi!\n"
@@ -166,14 +125,14 @@ def handle_text(message):
 def handle_approval(call):
     action, user_id = call.data.split("_", 1)
     user_id = int(user_id)
-
+    
     if action == "approve":
         try:
             bot.send_message(user_id, f"✅ Payment verified! Join here:\n{JOIN_LINK}")
             new_caption = (call.message.caption or "") + "\n\n✅ *APPROVED*"
         except Exception as e:
             new_caption = (call.message.caption or "") + f"\n\n✅ APPROVED (user msg fail: {e})"
-
+        
         bot.edit_message_caption(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
@@ -187,7 +146,7 @@ def handle_approval(call):
             new_caption = (call.message.caption or "") + "\n\n❌ *REJECTED*"
         except Exception as e:
             new_caption = (call.message.caption or "") + f"\n\n❌ REJECTED (user msg fail: {e})"
-
+        
         bot.edit_message_caption(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
@@ -195,7 +154,7 @@ def handle_approval(call):
             parse_mode="Markdown",
             reply_markup=None
         )
-
+    
     bot.answer_callback_query(call.id, "Done!")
 
 
