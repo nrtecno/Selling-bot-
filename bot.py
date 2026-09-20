@@ -52,7 +52,7 @@ def handle_buy(call):
     )
     bot.send_message(call.message.chat.id, buy_text, parse_mode="Markdown")
     with open(QR_CODE_PATH, 'rb') as qr:
-        bot.send_photo(call.message.chat.id, qr, caption="📱 Scan & Pay ₹30")
+        bot.send_photo(call.message.chat.id, qr, caption="📱 Scan & Pay ₹50")
 
 
 # User photo (screenshot) bheje
