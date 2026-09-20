@@ -44,8 +44,8 @@ def handle_samples(call):
 def handle_buy(call):
     bot.answer_callback_query(call.id)
     buy_text = (
-        "💵 *PRICE Only 30 Rupees*\n"
-        "📦 *CONTENT: 300+ videos*\n\n"
+        "💵 *PRICE Only 50 Rupees*\n"
+        "📦 *CONTENT: 1000+ videos*\n\n"
         "📸 Send your *screenshot* after payment\n"
         "👤 Also send your *Telegram username* for approval\n\n"
         "Payment & SEND SCREENSHOT for verify"
