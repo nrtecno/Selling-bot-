@@ -60,12 +60,20 @@ def get_all_users():
     conn.close()
     return [r[0] for r in rows]
 
+def get_user_count():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM users")
+    count = c.fetchone()[0]
+    conn.close()
+    return count
+
 init_db()
 
 # Pending screenshot store
 pending_users = {}
 
-# Broadcast state: {admin_id: True}
+# Broadcast state
 broadcast_mode = {}
 
 
@@ -78,11 +86,24 @@ def send_welcome(message):
         message.from_user.first_name
     )
     
+    # Step 1: Bold price message
+    price_text = (
+        "💵 *PRICE: Only 50 Rupees*\n"
+        "📦 *CONTENT: unlimited videos*"
+    )
+    bot.send_message(message.chat.id, price_text, parse_mode="Markdown")
+    
+    # Step 2: Buttons
     markup = types.InlineKeyboardMarkup()
     btn_samples = types.InlineKeyboardButton("📺 Samples", callback_data="samples")
     btn_buy = types.InlineKeyboardButton("💰 Buy", callback_data="buy")
     markup.add(btn_samples, btn_buy)
-    bot.send_message(message.chat.id, "Welcome! Please choose an option below:", reply_markup=markup)
+    
+    bot.send_message(
+        message.chat.id,
+        "👇 Choose an option below:",
+        reply_markup=markup
+    )
 
 
 # -------- /cast (Admin Only) --------
@@ -92,27 +113,71 @@ def cast_command(message):
         bot.reply_to(message, "❌ This command is only available to the admin.")
         return
     
-    broadcast_mode[message.from_user.id] = True
-    bot.reply_to(
-        message,
-        "📢 *Broadcast mode ON*\n\n"
-        "Any message you send now (text/photo/video/etc.) will be delivered to all users.\n\n"
-        "Send /cancel to stop broadcasting.",
-        parse_mode="Markdown"
+    total_users = get_user_count()
+    status = "🟢 ON" if message.from_user.id in broadcast_mode else "🔴 OFF"
+    
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    btn_on = types.InlineKeyboardButton("🟢 ON", callback_data="cast_on")
+    btn_off = types.InlineKeyboardButton("🔴 OFF", callback_data="cast_off")
+    markup.add(btn_on, btn_off)
+    
+    bot.send_message(
+        message.chat.id,
+        f"📢 *Broadcast Control Panel*\n\n"
+        f"👥 Total users: *{total_users}*\n"
+        f"📡 Current status: *{status}*\n\n"
+        f"Choose an option below:",
+        parse_mode="Markdown",
+        reply_markup=markup
     )
 
 
-# -------- /cancel --------
-@bot.message_handler(commands=['cancel'])
-def cancel_command(message):
-    if message.from_user.id == ADMIN_ID and message.from_user.id in broadcast_mode:
-        del broadcast_mode[message.from_user.id]
-        bot.reply_to(message, "❌ Broadcast cancelled.")
+# -------- Cast ON/OFF Buttons --------
+@bot.callback_query_handler(func=lambda call: call.data in ["cast_on", "cast_off"])
+def handle_cast_toggle(call):
+    if call.from_user.id != ADMIN_ID:
+        bot.answer_callback_query(call.id, "❌ Admin only!")
+        return
+    
+    admin_id = call.from_user.id
+    total_users = get_user_count()
+    
+    if call.data == "cast_on":
+        broadcast_mode[admin_id] = True
+        status = "🟢 ON"
+        bot.answer_callback_query(call.id, "Broadcast ON ✅")
+        note = "📩 Now send the message you want to broadcast to all users (text/photo/video/sticker/etc.)."
     else:
-        bot.reply_to(message, "Nothing to cancel.")
+        broadcast_mode.pop(admin_id, None)
+        status = "🔴 OFF"
+        bot.answer_callback_query(call.id, "Broadcast OFF ❌")
+        note = "✅ Bot is now in normal mode."
+    
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    btn_on = types.InlineKeyboardButton("🟢 ON", callback_data="cast_on")
+    btn_off = types.InlineKeyboardButton("🔴 OFF", callback_data="cast_off")
+    markup.add(btn_on, btn_off)
+    
+    new_text = (
+        f"📢 *Broadcast Control Panel*\n\n"
+        f"👥 Total users: *{total_users}*\n"
+        f"📡 Current status: *{status}*\n\n"
+        f"{note}"
+    )
+    
+    try:
+        bot.edit_message_text(
+            new_text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+    except Exception as e:
+        print(f"Edit failed: {e}")
 
 
-# -------- /stats (Admin Only) --------
+# -------- /stats (Bonus) --------
 @bot.message_handler(commands=['stats'])
 def stats_command(message):
     if message.from_user.id != ADMIN_ID:
@@ -157,7 +222,7 @@ def send_broadcast(admin_id, message):
                 bot.copy_message(uid, message.chat.id, message.message_id)
             
             success += 1
-            time.sleep(0.05)  # Rate limit safety
+            time.sleep(0.05)
         except Exception as e:
             failed += 1
             print(f"Failed to send to {uid}: {e}")
@@ -170,7 +235,8 @@ def send_broadcast(admin_id, message):
         chat_id=admin_id,
         message_id=status_msg.message_id
     )
-    del broadcast_mode[admin_id]
+    # Auto OFF after broadcast
+    broadcast_mode.pop(admin_id, None)
 
 
 # -------- Samples Button --------
@@ -186,14 +252,14 @@ def handle_buy(call):
     bot.answer_callback_query(call.id)
     buy_text = (
         "💵 *PRICE: Only 50 Rupees*\n"
-        "📦 *CONTENT: Unlimited videos*\n\n"
+        "📦 *CONTENT: unlimited videos*\n\n"
         "📸 Send your *payment screenshot*\n"
         "👤 Also send your *Telegram username* for approval\n\n"
         "Complete payment & SEND SCREENSHOT for verification"
     )
     bot.send_message(call.message.chat.id, buy_text, parse_mode="Markdown")
     with open(QR_CODE_PATH, 'rb') as qr:
-        bot.send_photo(call.message.chat.id, qr, caption="📱 Scan & Pay ₹30")
+        bot.send_photo(call.message.chat.id, qr, caption="📱 Scan & Pay ₹50")
 
 
 # -------- Photo Handler --------
@@ -204,6 +270,16 @@ def handle_photo(message):
     # Admin broadcast mode
     if user_id == ADMIN_ID and user_id in broadcast_mode:
         send_broadcast(user_id, message)
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        btn_on = types.InlineKeyboardButton("🟢 ON", callback_data="cast_on")
+        btn_off = types.InlineKeyboardButton("🔴 OFF", callback_data="cast_off")
+        markup.add(btn_on, btn_off)
+        bot.send_message(
+            ADMIN_ID,
+            f"📢 Broadcast finished. Status: 🔴 *OFF*\n\nTotal users: *{get_user_count()}*",
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
         return
     
     # Normal user screenshot
@@ -225,6 +301,16 @@ def handle_text(message):
     # Admin broadcast mode
     if user_id == ADMIN_ID and user_id in broadcast_mode and not text.startswith('/'):
         send_broadcast(user_id, message)
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        btn_on = types.InlineKeyboardButton("🟢 ON", callback_data="cast_on")
+        btn_off = types.InlineKeyboardButton("🔴 OFF", callback_data="cast_off")
+        markup.add(btn_on, btn_off)
+        bot.send_message(
+            ADMIN_ID,
+            f"📢 Broadcast finished. Status: 🔴 *OFF*\n\nTotal users: *{get_user_count()}*",
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
         return
     
     # User sends username after screenshot
