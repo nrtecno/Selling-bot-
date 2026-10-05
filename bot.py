@@ -243,7 +243,7 @@ def send_broadcast(admin_id, message):
 @bot.callback_query_handler(func=lambda call: call.data == "samples")
 def handle_samples(call):
     bot.answer_callback_query(call.id)
-    bot.send_message(call.message.chat.id, "https://t.me/c/4495844318/3")
+    bot.send_message(call.message.chat.id, "https://t.me/+zg5eKKWc1qZjOWM1")
 
 
 # -------- Buy Button --------
