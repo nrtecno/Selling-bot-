@@ -8,7 +8,7 @@ import time
 BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 ADMIN_CHANNEL_ID = os.environ.get("ADMIN_CHANNEL_ID")
 ADMIN_ID = os.environ.get("ADMIN_ID")  # Your personal Telegram ID
-JOIN_LINK = "https://t.me/+H-3MzZdoVTAxMjll"
+JOIN_LINK = "https://t.me/+AMrKiPLIi0QzYjU9"
 QR_CODE_PATH = "qr_code.png"
 DB_PATH = "users.db"
 
@@ -95,9 +95,9 @@ def send_welcome(message):
     
     # Step 2: Buttons
     markup = types.InlineKeyboardMarkup()
-    btn_samples = types.InlineKeyboardButton("📺 Samples", callback_data="samples")
+    btn_demo = types.InlineKeyboardButton("🎬 Demo", callback_data="demo")
     btn_buy = types.InlineKeyboardButton("💰 Buy", callback_data="buy")
-    markup.add(btn_samples, btn_buy)
+    markup.add(btn_demo, btn_buy)
     
     bot.send_message(
         message.chat.id,
@@ -239,11 +239,17 @@ def send_broadcast(admin_id, message):
     broadcast_mode.pop(admin_id, None)
 
 
-# -------- Samples Button --------
-@bot.callback_query_handler(func=lambda call: call.data == "samples")
-def handle_samples(call):
+# -------- Demo Button --------
+@bot.callback_query_handler(func=lambda call: call.data == "demo")
+def handle_demo(call):
     bot.answer_callback_query(call.id)
-    bot.send_message(call.message.chat.id, "https://t.me/+zg5eKKWc1qZjOWM1")
+    demo_text = (
+        "🎬 *DEMO:* https://t.me/demotechs/3\n\n"
+        "Password 🔑: `NARENDRA@787#454`\n"
+        "Password 🔑: `NARENDRA@787#454`\n"
+        "Password 🔑: `NARENDRA@787#454`"
+    )
+    bot.send_message(call.message.chat.id, demo_text, parse_mode="Markdown")
 
 
 # -------- Buy Button --------
